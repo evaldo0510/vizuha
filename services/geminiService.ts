@@ -202,4 +202,63 @@ export const getFashionAdvice = async (
     console.error("Error getting advice:", error);
     return { text: "Erro ao conectar com o assistente.", chunks: [] };
   }
+
+/**
+ * Generates a fashion look mockup using the user's actual face photo.
+ * This combines the user's selfie with clothing/environment generation.
+ * Uses: gemini-3-pro-image-preview with image reference
+ */
+export const generateLookWithUserFace = async (
+  userFaceBase64: string,
+  lookPrompt: string,
+  aspectRatio: string = "3:4",
+  resolution: string = "1K"
+): Promise<string> => {
+  try {
+    const cleanBase64 = userFaceBase64.split(',')[1] || userFaceBase64;
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: cleanBase64
+            }
+          },
+          { 
+            text: `Using the person's face in the provided image, generate a realistic full-body fashion photo with the following specifications:
+            
+${lookPrompt}
+
+IMPORTANT: 
+- Keep the person's facial features, skin tone, and hair from the reference image
+- Show them wearing the described outfit in a full-body composition
+- Maintain photorealistic quality and natural lighting
+- Ensure the face matches the reference photo provided` 
+          }
+        ]
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: aspectRatio,
+          imageSize: resolution
+        }
+      }
+    });
+
+    // Extract generated image
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    
+    throw new Error("No image generated with user face");
+  } catch (error) {
+    console.error("Error generating look with user face:", error);
+    throw error;
+  }
+};
 };

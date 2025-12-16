@@ -8,7 +8,8 @@ import {
   BookOpen, Video, FileText, Unlock, Settings, 
   CreditCard, Crown, Check, ShieldCheck, Dumbbell, Grid,
   Search, Globe, Map, Zap, Facebook, Instagram, Twitter, Linkedin,
-  RotateCw, ZoomIn, PartyPopper, CalendarHeart, Smartphone, Home, Compass, Shirt
+  RotateCw, ZoomIn, PartyPopper, CalendarHeart, Smartphone, Home, Compass, Shirt, RefreshCw, Lightbulb, Scissors,
+  Bell, Bookmark, Sliders
 } from 'lucide-react';
 import * as GeminiService from './services/geminiService';
 
@@ -45,6 +46,8 @@ interface UserProfile {
   contrast?: 'Baixo' | 'Médio' | 'Alto';
   traits?: string[];
   description?: string;
+  lightingGuide?: string; // Iconometria/Light suggestion
+  visagismTips?: string[]; // Visagism tips
   
   // Usage tracking for Free plan
   looksGenerated: number;
@@ -134,11 +137,12 @@ const SEASONS: Record<string, { colors: string[], description: string, icon: str
 };
 
 const LOOK_OBJECTIVES = [
-  { id: 'work', label: 'Trabalho', icon: Briefcase, desc: 'Looks para credibilidade.', environmentContext: 'Escritório moderno', premium: false, iconEmoji: '💼' },
+  { id: 'work', label: 'Trabalho', icon: Briefcase, desc: 'Looks para credibilidade.', environmentContext: 'Escritório moderno e sofisticado', premium: false, iconEmoji: '💼' },
   { id: 'date', label: 'Encontro', icon: CalendarHeart, desc: 'Romântico e moderno.', environmentContext: 'Restaurante intimista à luz de velas', premium: true, iconEmoji: '🥂' },
-  { id: 'party', label: 'Festa', icon: PartyPopper, desc: 'Brilho e sofisticação.', environmentContext: 'Lounge sofisticado', premium: true, iconEmoji: '✨' },
-  { id: 'casual', label: 'Casual', icon: User, desc: 'Estilo no dia a dia.', environmentContext: 'Rua urbana / Café', premium: false, iconEmoji: '☕' },
-  { id: 'formal', label: 'Gala', icon: Crown, desc: 'Luxo e elegância.', environmentContext: 'Salão de baile clássico', premium: true, iconEmoji: '🏛️' },
+  { id: 'date_night', label: 'Date Night', icon: CalendarHeart, desc: 'Romântico e moderno.', environmentContext: 'Restaurante intimista à luz de velas', premium: true, iconEmoji: '🌙' },
+  { id: 'party', label: 'Festa', icon: PartyPopper, desc: 'Brilho e sofisticação.', environmentContext: 'Lounge noturno sofisticado', premium: true, iconEmoji: '✨' },
+  { id: 'casual', label: 'Casual', icon: User, desc: 'Estilo no dia a dia.', environmentContext: 'Rua urbana elegante com café ao fundo', premium: false, iconEmoji: '☕' },
+  { id: 'formal', label: 'Gala', icon: Crown, desc: 'Luxo e elegância.', environmentContext: 'Salão de baile clássico luxuoso', premium: true, iconEmoji: '🏛️' },
 ];
 
 // --- Componentes UI Reutilizáveis ---
@@ -167,16 +171,21 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
   );
 };
 
+const Logo = ({ className = "h-8" }: { className?: string }) => (
+  <div className={`flex items-center gap-2 ${className}`}>
+    <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10 5L20 35L30 5" stroke="#1A1A2E" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M16 5L20 20L24 5" stroke="#C5A572" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+    <span className="font-serif font-bold text-xl text-vizu-dark tracking-tight">Vizuhalizando</span>
+  </div>
+);
+
 // --- Landing Page Components ---
 
 const Navbar = ({ onLogin, onInstall, canInstall }: { onLogin: () => void, onInstall?: () => void, canInstall?: boolean }) => (
-  <nav className="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto w-full z-50 relative">
-    <div className="flex items-center space-x-2">
-      <div className="w-8 h-8 bg-vizu-dark rounded-lg flex items-center justify-center text-vizu-gold">
-        <Sparkles className="w-5 h-5" />
-      </div>
-      <span className="text-xl font-serif font-bold text-vizu-dark">Vizuhalizando</span>
-    </div>
+  <nav className="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto w-full z-50 relative bg-white/50 backdrop-blur-sm sticky top-0 border-b border-gray-100">
+    <Logo />
     <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-gray-600">
       <a href="#benefits" className="hover:text-vizu-gold transition-colors">Benefícios</a>
       <a href="#how-it-works" className="hover:text-vizu-gold transition-colors">Como Funciona</a>
@@ -343,10 +352,7 @@ const Footer = () => (
     <div className="max-w-7xl mx-auto px-6">
       <div className="grid md:grid-cols-4 gap-8 mb-8">
         <div className="col-span-1 md:col-span-1">
-          <div className="flex items-center space-x-2 mb-4">
-            <Sparkles className="w-5 h-5 text-vizu-gold" />
-            <span className="text-xl font-serif font-bold">Vizuhalizando</span>
-          </div>
+          <Logo className="mb-4 text-white" />
           <p className="text-gray-400 text-sm">Seu estilo explicado. Aplicado. Visualizado.</p>
         </div>
       </div>
@@ -511,7 +517,9 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
            palette: detectedPalette,
            contrast: analysis.contrast,
            traits: analysis.traits,
-           description: analysis.description
+           description: analysis.description,
+           lightingGuide: analysis.lightingGuide,
+           visagismTips: analysis.visagismTips
          }));
 
          setProcessingStep('Finalizando seu dossiê...');
@@ -538,6 +546,20 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
+  };
+  
+  const handleUpdatePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setUser(prev => ({ ...prev, image: base64 }));
+        // Optionally re-analyze here or just assume user wants this for generation
+        alert("Foto atualizada com sucesso! Pronta para a geração.");
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const startCamera = async () => {
@@ -606,6 +628,58 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
   const handleRotateImage = () => {
     setUser(prev => ({ ...prev, rotation: (prev.rotation || 0) + 90 }));
   };
+  
+  // Direct Generation from Dashboard ("Nano Banana")
+  const handleQuickGeneration = async () => {
+    if (userPlan === 'free' && user.looksGenerated >= 1) {
+       alert("Você atingiu o limite do plano gratuito. Faça upgrade para gerar looks ilimitados.");
+       setView('pricing');
+       return;
+    }
+    
+    setIsProcessing(true);
+    setProcessingStep("Ativando Nano Banana (Modo Criação)...");
+    
+    // Auto-select "Fashion/Editorial" objective for the main screen magic button
+    const defaultObjective = "Editorial";
+    const defaultEnv = "A high-end architectural setting with soft, natural lighting";
+
+    try {
+      const prompt = `Fashion photography. The person in this image wearing a perfect look for their season: ${user.season}.
+      Style: Sophisticated, Modern, Expensive.
+      Face Shape: ${user.faceShape}.
+      Lighting/Iconometry: ${user.lightingGuide}.
+      Environment: ${defaultEnv}.
+      Maintain facial identity strictly. High quality, 8k, photorealistic, masterpiece.`;
+
+      // Pass user.image as the reference image
+      const [imageUrl, explanation] = await Promise.all([
+         GeminiService.generateFashionLook(prompt, "3:4", "1K", user.image || undefined),
+         GeminiService.generateLookExplanation(user, "Look Sugerido", "Baseado na sua análise completa")
+      ]);
+
+      setGeneratedLook({
+        id: `gen-${Date.now()}`,
+        objective: 'magic',
+        titulo: 'Seu Look Ideal',
+        items: ['Look gerado'],
+        detalhes: explanation || "Uma seleção exclusiva baseada na sua colorimetria.",
+        tips: explanation,
+        imagePlaceholder: imageUrl
+      });
+      
+      // Increment Usage
+      setUser(prev => ({ ...prev, looksGenerated: prev.looksGenerated + 1 }));
+
+      setIsProcessing(false);
+      setView('look-result');
+
+    } catch (error) {
+      console.error(error);
+      setIsProcessing(false);
+      alert("Falha na geração. Verifique sua conexão.");
+    }
+  };
 
   const generateLook = async (objectiveId: string) => {
     // Usage Logic Enforcer
@@ -630,17 +704,18 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
     setProcessingStep(`Conectando ao consultor IA...`);
 
     try {
-      const prompt = `Create a hyper-realistic fashion photograph for a person with ${user.faceShape} face shape and ${user.season} color palette. 
-      The goal is ${objectiveData?.label} (${objectiveData?.desc}). 
-      Visagism strategy: Use clothing lines that balance their features (implied by face shape).
-      ${createEnvironment ? `Setting: ${objectiveData?.environmentContext}.` : 'Studio background.'}
-      Focus on texture, fabric quality and perfect color harmony. High fashion.`;
+      // Improved prompt for Image-to-Image / Transformation
+      const prompt = `Fashion photography. The person in this image wearing a look for ${objectiveData?.label} (${objectiveData?.desc}).
+      Palette: ${user.season}. Face Shape: ${user.faceShape}.
+      Lighting/Iconometry: ${user.lightingGuide}.
+      Environment: ${createEnvironment ? objectiveData?.environmentContext : 'Professional studio'}.
+      High quality, 8k, photorealistic.`;
 
       setProcessingStep('Aplicando estilo na sua foto (Nano Banana)...');
       
-      // Parallel execution: Generate Image and Generate Explanation
+      // Pass user.image as the reference image for the model
       const [imageUrl, explanation] = await Promise.all([
-         GeminiService.generateFashionLook(prompt, aspectRatio, resolution),
+         GeminiService.generateFashionLook(prompt, aspectRatio, resolution, user.image || undefined),
          GeminiService.generateLookExplanation(user, objectiveData?.label || 'Look', objectiveData?.desc || '')
       ]);
 
@@ -809,219 +884,183 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
   if (view === 'pricing') return <PricingView onSelectPlan={(p) => { setUserPlan(p); setView('dashboard'); }} currentPlan={userPlan} onBack={() => setView('dashboard')} />;
 
   if (view === 'dashboard') {
-    // New Dashboard Implementation based on the requested design
+    // New Dashboard Implementation based on the Clean UI Reference (2nd image)
     return (
-      <div className="min-h-screen bg-vizu-bg text-vizu-dark font-sans antialiased pb-24">
+      <div className="min-h-screen bg-[#F5F5F5] text-vizu-dark font-sans antialiased pb-24">
         
-        {/* Header Transparent */}
-        <header className="fixed top-0 w-full bg-vizu-bg/95 backdrop-blur-sm z-50 border-b border-gray-200 px-5 py-4 flex justify-between items-center transition-all duration-300">
-            <h1 className="font-serif text-xl font-bold tracking-tight text-vizu-dark">Vizuhalizando</h1>
-            <div className="flex items-center gap-3">
-                <div className="text-right hidden sm:block">
-                    <p className="text-sm font-semibold text-vizu-dark flex items-center justify-end gap-1">
-                        {user.name} 
-                        {userPlan !== 'free' && <span className="text-vizu-gold text-xs">♦</span>}
-                    </p>
-                </div>
-                <div className="relative">
-                    {user.image ? (
-                        <img 
-                            src={user.image} 
-                            style={{ transform: `rotate(${user.rotation || 0}deg)` }}
-                            className="w-9 h-9 rounded-full object-cover border-2 border-vizu-gold p-[1px]" 
-                            alt="Perfil" 
-                        />
-                    ) : (
-                        <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center border-2 border-vizu-gold p-[1px]">
-                            <User className="w-5 h-5 text-gray-500" />
-                        </div>
-                    )}
-                </div>
-            </div>
+        {/* Top Header */}
+        <header className="px-6 pt-12 pb-4 flex justify-between items-center bg-[#F5F5F5]">
+            <Logo />
+            <button className="p-2 bg-white rounded-full shadow-sm relative">
+                <Bell className="w-5 h-5 text-gray-700" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+            </button>
         </header>
 
-        <div className="h-20"></div>
+        {/* Search Bar */}
+        <div className="px-6 mb-6">
+          <div className="flex items-center bg-white rounded-2xl px-4 py-3 shadow-sm border border-gray-100">
+             <Search className="w-5 h-5 text-gray-400 mr-3" />
+             <input type="text" placeholder="Buscar" className="flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400" />
+          </div>
+        </div>
 
-        {/* Hero Section / Profile Visual */}
-        <section className="px-5 mt-4">
-            <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(0,0,0,0.06)] overflow-hidden h-auto md:h-72 flex flex-col md:flex-row">
-                <div className="w-full md:w-1/2 h-64 md:h-full relative bg-gray-100">
-                    {user.image && (
-                         <img 
-                            src={user.image} 
-                            style={{ transform: `rotate(${user.rotation || 0}deg)` }}
-                            className="w-full h-full object-cover" 
-                            alt="Selfie Usuário" 
-                         />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-vizu-dark/50 to-transparent md:hidden"></div>
+        {/* Categories / Quick Access */}
+        <div className="px-6 mb-8 overflow-x-auto hide-scroll">
+           <h3 className="font-medium text-sm text-gray-500 mb-3">Categorias</h3>
+           <div className="flex space-x-6">
+              <div className="flex flex-col items-center gap-2 cursor-pointer" onClick={() => setView('look-generator')}>
+                 <div className="w-14 h-14 rounded-2xl border border-gray-200 flex items-center justify-center bg-white">
+                    <CalendarHeart className="w-6 h-6 text-vizu-dark" />
+                 </div>
+                 <span className="text-xs font-medium text-gray-600">Ocasião</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer">
+                 <div className="w-14 h-14 rounded-2xl border border-gray-200 flex items-center justify-center bg-white">
+                    <Palette className="w-6 h-6 text-vizu-dark" />
+                 </div>
+                 <span className="text-xs font-medium text-gray-600">Cores</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer">
+                 <div className="w-14 h-14 rounded-2xl border border-gray-200 flex items-center justify-center bg-white">
+                    <Shirt className="w-6 h-6 text-vizu-dark" />
+                 </div>
+                 <span className="text-xs font-medium text-gray-600">Estilo</span>
+              </div>
+              <div className="flex flex-col items-center gap-2 cursor-pointer" onClick={() => setView('assistant')}>
+                 <div className="w-14 h-14 rounded-2xl border border-gray-200 flex items-center justify-center bg-white">
+                    <Search className="w-6 h-6 text-vizu-dark" />
+                 </div>
+                 <span className="text-xs font-medium text-gray-600">Tem...</span>
+              </div>
+           </div>
+        </div>
+
+        {/* Main Profile Card - Clean Design */}
+        <section className="px-6 mb-8">
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-[#F9F9F9] to-transparent z-0"></div>
+                
+                <h2 className="font-serif text-xl font-bold text-vizu-dark mb-6 relative z-10">Seu Perfil Visual</h2>
+                
+                <div className="relative mb-4 z-10">
+                   {user.image ? (
+                     <img 
+                        src={user.image} 
+                        style={{ transform: `rotate(${user.rotation || 0}deg)` }}
+                        className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"
+                     />
+                   ) : (
+                     <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center border-4 border-white shadow-md">
+                        <User className="w-10 h-10 text-gray-300" />
+                     </div>
+                   )}
+                   <div className="absolute bottom-0 right-0 w-8 h-8 bg-[#C5A572] rounded-full flex items-center justify-center text-white border-2 border-white shadow-sm">
+                      <Check className="w-4 h-4" />
+                   </div>
+                   {/* Edit Button overlay */}
+                   <button onClick={() => document.getElementById('photo-update-input')?.click()} className="absolute top-0 right-0 p-1 bg-white rounded-full border border-gray-200 shadow-sm text-gray-500">
+                      <RefreshCw className="w-3 h-3" />
+                   </button>
+                   <input 
+                      id="photo-update-input" 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={handleUpdatePhoto}
+                    />
                 </div>
                 
-                <div className="w-full md:w-1/2 bg-vizu-dark p-6 flex flex-col justify-center text-white relative">
-                    <h2 className="font-serif text-lg text-gray-200 mb-4">Seu Perfil Visual</h2>
-                    
-                    <div className="space-y-3 mb-6">
-                        <div className="flex items-center gap-3">
-                            <div className="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center text-xs">🎨</div>
-                            <p className="text-sm font-light"><span className="font-medium text-vizu-gold">Paleta:</span> {user.season || 'Em análise'}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center text-xs">👤</div>
-                            <p className="text-sm font-light"><span className="font-medium text-vizu-gold">Rosto:</span> {user.faceShape || 'Em análise'}</p>
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={() => setView('look-generator')}
-                        className="w-full bg-white text-vizu-dark font-semibold py-3 rounded-xl hover:bg-gray-100 transition shadow-lg flex items-center justify-center gap-2"
-                    >
-                        Gerar novo look ✨
-                    </button>
-                    <button className="text-center text-xs text-gray-400 mt-3 hover:text-white transition underline decoration-gray-600">Ver análise completa</button>
-                </div>
-            </div>
-        </section>
-
-        {/* Horizontal Scrolling Objectives */}
-        <section className="mt-8 pl-5">
-            <h3 className="font-serif text-xl font-semibold text-vizu-dark mb-4">Para onde você vai hoje?</h3>
-            
-            <div className="flex overflow-x-auto gap-4 pb-4 hide-scroll pr-5">
-                {LOOK_OBJECTIVES.map((obj, index) => {
-                    const isSpecial = index === 4; // Make the last item (Gala) look special
-                    return (
-                        <div 
-                            key={obj.id}
-                            onClick={() => generateLook(obj.id)}
-                            className={`min-w-[140px] h-[160px] rounded-2xl p-4 flex flex-col justify-between shadow-sm cursor-pointer snap-center relative overflow-hidden transition-transform active:scale-95 ${isSpecial ? 'bg-gradient-to-br from-gray-50 to-white border border-vizu-gold/30' : 'bg-white border border-gray-50'}`}
-                        >
-                            {isSpecial && <div className="absolute -right-2 -top-2 text-vizu-gold/10 text-6xl font-serif">A</div>}
-                            <div className={`text-3xl ${isSpecial ? 'text-vizu-gold' : 'text-vizu-dark'}`}>{obj.iconEmoji || '👔'}</div>
-                            <div>
-                                <h4 className="font-serif font-bold text-vizu-dark">{obj.label}</h4>
-                                <p className="text-xs text-gray-500 mt-1 leading-tight">{obj.desc}</p>
-                            </div>
-                            {userPlan === 'free' && obj.premium && (
-                                <div className="absolute top-2 right-2 bg-gray-100 p-1 rounded-full">
-                                    <Lock className="w-3 h-3 text-gray-400" />
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-                <div className="min-w-[20px]"></div>
-            </div>
-        </section>
-
-        {/* Recent/Examples Section */}
-        <section className="px-5 mt-6">
-            <h3 className="font-serif text-xl font-semibold text-vizu-dark mb-4">Inspirações para você</h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl p-3 shadow-sm pb-4">
-                    <div className="h-40 rounded-xl bg-gray-100 overflow-hidden mb-3 relative">
-                         <img src="https://images.unsplash.com/photo-1594938298603-c8148c4dae35?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80" className="w-full h-full object-cover" alt="Look" />
-                         <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-md backdrop-blur-md">Exemplo</div>
-                    </div>
-                    <div className="flex items-start gap-1">
-                        <span className="text-green-600 text-xs mt-0.5">✔</span>
-                        <p className="text-[11px] leading-tight text-gray-600">Tom terroso aquece a pele.</p>
-                    </div>
+                <div className="mb-6 relative z-10">
+                   <p className="text-gray-600 font-medium">Paleta: <span className="text-[#C5A572]">{user.season || 'Analisar'}</span></p>
                 </div>
                 
-                <div className="bg-white rounded-2xl p-3 shadow-sm pb-4">
-                    <div className="h-40 rounded-xl bg-gray-100 overflow-hidden mb-3 relative">
-                         <img src="https://images.unsplash.com/photo-1617137968427-85924c809a10?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80" className="w-full h-full object-cover" alt="Look" />
-                         <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-md backdrop-blur-md">Exemplo</div>
-                    </div>
-                    <div className="flex items-start gap-1">
-                        <span className="text-green-600 text-xs mt-0.5">✔</span>
-                        <p className="text-[11px] leading-tight text-gray-600">Gola alta equilibra o maxilar.</p>
-                    </div>
-                </div>
-            </div>
-            
-            <button className="w-full mt-5 border border-vizu-dark text-vizu-dark rounded-xl py-3 text-sm font-medium hover:bg-gray-50 transition flex justify-center items-center gap-2">
-                Explorar histórico completo 
-                <span className="text-vizu-gold"><Lock className="w-3 h-3" /></span>
-            </button>
-        </section>
-
-        {/* Educational/Editorial Section */}
-        <section className="px-5 mt-10">
-            <div className="relative w-full h-64 rounded-[24px] overflow-hidden shadow-md group cursor-pointer" onClick={() => setView('assistant')}>
-                <img src="https://images.unsplash.com/photo-1526265742398-e7e2954a1a67?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-105" alt="Tecido" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10"></div>
-                
-                <div className="absolute bottom-0 left-0 p-6 text-white w-full">
-                    <span className="text-xs font-bold tracking-widest text-vizu-gold uppercase mb-2 block">Editorial</span>
-                    <h3 className="font-serif text-2xl mb-2 leading-tight">30 dias para dominar suas cores</h3>
-                    <p className="text-sm text-gray-300 mb-4">Entenda, teste e aplique no seu dia a dia.</p>
-                    <button className="border border-white/50 text-white px-5 py-2 rounded-full text-xs font-medium hover:bg-white hover:text-black transition">Começar trilha</button>
-                </div>
-            </div>
-        </section>
-
-        {/* Premium Banner */}
-        {userPlan === 'free' && (
-            <section className="mx-5 mt-10 mb-8 bg-vizu-dark rounded-[24px] p-8 text-center shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-vizu-gold/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
-                
-                <h3 className="relative font-serif text-xl text-vizu-gold mb-4">Desbloqueie sua máxima potência visual.</h3>
-                
-                <ul className="relative text-left text-gray-300 text-sm space-y-3 mb-8 pl-4 inline-block">
-                    <li className="flex items-center gap-2"><span className="text-vizu-gold">✔</span> Variações ilimitadas de looks</li>
-                    <li className="flex items-center gap-2"><span className="text-vizu-gold">✔</span> Análise profunda de linhas faciais</li>
-                    <li className="flex items-center gap-2"><span className="text-vizu-gold">✔</span> Acesso a todas as trilhas</li>
-                </ul>
-
                 <button 
-                    onClick={() => setView('pricing')}
-                    className="relative w-full bg-vizu-gold text-vizu-dark font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(197,165,114,0.3)] hover:brightness-110 transition"
+                  onClick={handleQuickGeneration}
+                  className="w-full py-4 bg-[#1A1A2E] text-white rounded-xl font-medium shadow-lg shadow-gray-200 active:scale-95 transition-transform relative z-10"
                 >
-                    Conhecer o Premium 💎
+                  Gerar novo look
                 </button>
-            </section>
+            </div>
+        </section>
+
+        {/* Menu List */}
+        <div className="px-6 space-y-2 mb-8">
+           <div className="bg-transparent flex items-center justify-between p-3 rounded-xl hover:bg-white transition-colors cursor-pointer group">
+              <div className="flex items-center gap-4">
+                 <Bookmark className="w-5 h-5 text-gray-700" />
+                 <span className="text-sm font-medium text-gray-700 group-hover:text-vizu-dark">Meus Looks Salvos</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+           </div>
+           <div className="bg-transparent flex items-center justify-between p-3 rounded-xl hover:bg-white transition-colors cursor-pointer group">
+              <div className="flex items-center gap-4">
+                 <Sliders className="w-5 h-5 text-gray-700" />
+                 <span className="text-sm font-medium text-gray-700 group-hover:text-vizu-dark">Preferências</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+           </div>
+           <div className="bg-transparent flex items-center justify-between p-3 rounded-xl hover:bg-white transition-colors cursor-pointer group">
+              <div className="flex items-center gap-4">
+                 <Settings className="w-5 h-5 text-gray-700" />
+                 <span className="text-sm font-medium text-gray-700 group-hover:text-vizu-dark">Configurações</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+           </div>
+        </div>
+        
+        {/* Premium Upgrade Banner */}
+        {userPlan === 'free' && (
+           <div className="px-6 mb-8">
+              <div onClick={() => setView('pricing')} className="bg-[#1A1A2E] rounded-xl p-4 flex items-center justify-between shadow-lg cursor-pointer">
+                 <div className="flex items-center gap-3">
+                    <Crown className="w-5 h-5 text-[#C5A572]" />
+                    <span className="text-white font-medium text-sm">Upgrade para Premium</span>
+                 </div>
+                 <ChevronRight className="w-4 h-4 text-gray-400" />
+              </div>
+           </div>
         )}
 
+        {/* Inspiration Grid (Featured Looks) */}
+        <div className="px-6 mb-6">
+           <h3 className="font-medium text-sm text-gray-500 mb-4">Featured looks</h3>
+           <div className="grid grid-cols-2 gap-4">
+               <div className="h-48 rounded-2xl bg-gray-200 overflow-hidden relative">
+                   <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400" className="w-full h-full object-cover" />
+               </div>
+               <div className="h-48 rounded-2xl bg-gray-200 overflow-hidden relative">
+                   <img src="https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=400" className="w-full h-full object-cover" />
+               </div>
+               <div className="h-48 rounded-2xl bg-gray-200 overflow-hidden relative">
+                   <img src="https://images.unsplash.com/photo-1529139574466-a302d2052574?w=400" className="w-full h-full object-cover" />
+               </div>
+               <div className="h-48 rounded-2xl bg-gray-200 overflow-hidden relative">
+                   <img src="https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400" className="w-full h-full object-cover" />
+               </div>
+           </div>
+        </div>
+
         {/* Bottom Navigation */}
-        <nav className="fixed bottom-0 w-full bg-vizu-bg/95 backdrop-blur-md border-t border-gray-200 h-[80px] flex justify-around items-center pb-2 z-50 text-xs text-gray-400">
+        <nav className="fixed bottom-0 w-full bg-white border-t border-gray-100 h-20 flex justify-around items-center pb-4 z-50 rounded-t-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.02)]">
             <div 
-                className={`flex flex-col items-center gap-1 cursor-pointer ${view === 'dashboard' ? 'text-vizu-dark' : 'hover:text-vizu-dark'}`}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${view === 'dashboard' ? 'text-vizu-dark' : 'text-gray-400'}`}
                 onClick={() => setView('dashboard')}
             >
                 <Home className="w-6 h-6" />
-                <span className="font-medium">Home</span>
             </div>
             
             <div 
-                className="flex flex-col items-center gap-1 hover:text-vizu-dark cursor-pointer transition"
+                className="flex flex-col items-center gap-1 cursor-pointer text-gray-400 hover:text-vizu-dark transition-colors"
+                onClick={() => setView('look-generator')}
+            >
+                <Grid className="w-6 h-6" />
+            </div>
+
+            <div className="flex flex-col items-center gap-1 cursor-pointer text-gray-400 hover:text-vizu-dark transition-colors"
                 onClick={() => setView('assistant')}
             >
-                <Compass className="w-6 h-6" />
-                <span>Explorar</span>
-            </div>
-
-            <div 
-                className="mb-6 cursor-pointer transform hover:scale-105 transition"
-                onClick={() => setView('look-generator')}
-            >
-                <div className="w-14 h-14 bg-vizu-dark rounded-full flex items-center justify-center text-vizu-gold shadow-lg shadow-vizu-dark/40 border-2 border-vizu-bg">
-                    <Camera className="w-7 h-7" />
-                </div>
-            </div>
-
-            <div 
-                className="flex flex-col items-center gap-1 hover:text-vizu-dark cursor-pointer transition"
-                onClick={() => setView('look-generator')}
-            >
-                <Shirt className="w-6 h-6" />
-                <span>Looks</span>
-            </div>
-
-            <div className="flex flex-col items-center gap-1 hover:text-vizu-dark cursor-pointer transition">
                 <User className="w-6 h-6" />
-                <span>Perfil</span>
             </div>
         </nav>
       </div>

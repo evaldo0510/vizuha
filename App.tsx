@@ -8,7 +8,7 @@ import {
   BookOpen, Video, FileText, Unlock, Settings, 
   CreditCard, Crown, Check, ShieldCheck, Dumbbell, Grid,
   Search, Globe, Map, Zap, Facebook, Instagram, Twitter, Linkedin,
-  RotateCw, ZoomIn
+  RotateCw, ZoomIn, PartyPopper, CalendarHeart
 } from 'lucide-react';
 import * as GeminiService from './services/geminiService';
 
@@ -163,10 +163,10 @@ const SEASONS: Record<string, { colors: string[], description: string, icon: str
 const LOOK_OBJECTIVES = [
   { id: 'work', label: 'Corporativo', icon: Briefcase, desc: 'Autoridade profissional', environmentContext: 'Escritório moderno' },
   { id: 'casual', label: 'Casual Dia', icon: User, desc: 'Estilo no dia a dia', environmentContext: 'Rua urbana / Café' },
-  { id: 'party', label: 'Festa / Noite', icon: Sparkles, desc: 'Noite e sofisticação', environmentContext: 'Lounge sofisticado' },
+  { id: 'party', label: 'Festa / Noite', icon: PartyPopper, desc: 'Noite e sofisticação', environmentContext: 'Lounge sofisticado' },
   { id: 'sport', label: 'Esportivo', icon: Dumbbell, desc: 'Performance com estilo', environmentContext: 'Parque / Academia Premium' },
-  { id: 'date', label: 'Encontro', icon: Heart, desc: 'Romântico e atraente', environmentContext: 'Restaurante intimista à luz de velas' },
-  { id: 'formal', label: 'Evento de Gala', icon: Crown, desc: 'Luxo e elegância', environmentContext: 'Salão de baile clássico com lustres' },
+  { id: 'date', label: 'Encontro (Date Night)', icon: CalendarHeart, desc: 'Romântico e atraente', environmentContext: 'Restaurante intimista à luz de velas' },
+  { id: 'formal', label: 'Evento Formal', icon: Crown, desc: 'Gala, luxo e elegância', environmentContext: 'Salão de baile clássico com lustres' },
 ];
 
 // --- Componentes UI Reutilizáveis ---
@@ -628,7 +628,9 @@ const DashboardApp = () => {
       High fashion, realistic, detailed texture.`;
 
       setProcessingStep('Gerando imagem de alta fidelidade...');
-      const imageUrl = await GeminiService.generateLookWithUserFace(user.image!, prompt, aspectRatio, resolution);      setGeneratedLook({
+      const imageUrl = await GeminiService.generateFashionLook(prompt, aspectRatio, resolution);
+
+      setGeneratedLook({
         id: `gen-${Date.now()}`,
         objective: objectiveId,
         titulo: objectiveData?.label || 'Look',

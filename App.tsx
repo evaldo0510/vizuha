@@ -41,6 +41,7 @@ interface UserProfile {
   skinTone?: string;
   faceShape?: string;
   season?: string;
+  palette?: string[]; // Persisted color palette
   contrast?: 'Baixo' | 'Médio' | 'Alto';
   traits?: string[];
   description?: string;
@@ -442,6 +443,11 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
     looksGenerated: 0
   });
   
+  // Camera Refs and State
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+
   // Persistence Logic
   useEffect(() => {
     const saved = localStorage.getItem('vizuhalizando_user');
@@ -490,27 +496,25 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
 
   // --- Actions ---
 
-  const processFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
+  const handleImageAnalysis = async (base64: string) => {
       setUser(prev => ({ ...prev, image: base64 }));
-      
-      // Start Analysis
       setView('analyzing');
       setProcessingStep('Detectando rosto e iluminação...');
       
       try {
-         // Step 1: Visagism Analysis
          setProcessingStep('Analisando visagismo e psicologia da imagem...');
          const analysis = await GeminiService.analyzeUserImage(base64);
          
+         const seasonData = SEASONS[analysis.season];
+         const detectedPalette = seasonData ? seasonData.colors : [];
+
          setUser(prev => ({
            ...prev,
            analyzed: true,
            skinTone: 'Detectado',
            faceShape: analysis.faceShape,
            season: analysis.season,
+           palette: detectedPalette,
            contrast: analysis.contrast,
            traits: analysis.traits,
            description: analysis.description
@@ -518,7 +522,6 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
 
          setProcessingStep('Finalizando seu dossiê...');
          setTimeout(() => {
-            // First Analysis Free -> Straight to Dashboard
             setView('dashboard');
          }, 1000);
 
@@ -527,6 +530,13 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
          alert("Erro na análise de imagem. Tente novamente com uma foto mais clara.");
          setView('upload');
       }
+  };
+
+  const processFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      handleImageAnalysis(base64);
     };
     reader.readAsDataURL(file);
   };
@@ -534,6 +544,50 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
+  };
+
+  const startCamera = async () => {
+    try {
+      setIsCameraOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Não foi possível acessar a câmera. Verifique as permissões.");
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const context = canvas.getContext('2d');
+      if (context) {
+        // Draw image directly (no mirroring needed for analysis, mirroring is just for user preview usually)
+        context.translate(canvas.width, 0);
+        context.scale(-1, 1);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const base64 = canvas.toDataURL('image/jpeg');
+        stopCamera();
+        handleImageAnalysis(base64);
+      }
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -646,37 +700,73 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
 
   if (view === 'upload') {
     return (
-      <div className="min-h-screen bg-white flex flex-col p-6">
-        <div className="flex items-center mb-8">
-          <button onClick={() => window.location.reload()} className="p-2 hover:bg-slate-100 rounded-full"><ArrowRight className="w-6 h-6 rotate-180 text-slate-600" /></button>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center">
-          <div className="w-20 h-20 bg-violet-50 rounded-full flex items-center justify-center mb-6 animate-pulse">
-            <ScanFace className="w-10 h-10 text-violet-600" />
+      <div className="min-h-screen bg-white flex flex-col">
+        {isCameraOpen ? (
+          <div className="fixed inset-0 bg-black z-50 flex flex-col">
+            <div className="relative flex-1 bg-black overflow-hidden">
+              {/* Mirrored video for selfie feel */}
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover transform scale-x-[-1]" />
+              <div className="absolute top-0 left-0 right-0 p-6 flex justify-end z-10">
+                <button onClick={stopCamera} className="p-3 bg-black/40 backdrop-blur-md rounded-full text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="h-32 bg-black flex items-center justify-center pb-6">
+              <button onClick={capturePhoto} className="w-20 h-20 rounded-full bg-white border-4 border-slate-300 flex items-center justify-center transform active:scale-95 transition-all">
+                <div className="w-16 h-16 rounded-full bg-white border-2 border-slate-900"></div>
+              </button>
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
           </div>
-          <h2 className="text-2xl font-serif text-slate-900 mb-3">Vamos analisar sua imagem</h2>
-          <p className="text-slate-500 mb-8 max-w-xs">Para revelar o que mais te valoriza, precisamos de uma foto clara do seu rosto.</p>
-          <label 
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`w-full max-w-sm aspect-[3/4] border-2 border-dashed rounded-3xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden ${isDragging ? 'border-violet-600 bg-violet-50 scale-105 shadow-xl' : 'border-slate-300 bg-slate-50 hover:border-violet-500 hover:bg-violet-50'}`}
-          >
-            <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
-             {isDragging ? (
-               <div className="animate-bounce flex flex-col items-center">
-                 <Download className="w-12 h-12 text-violet-600 mb-4" />
-                 <span className="text-violet-700 font-bold">Solte para enviar</span>
-               </div>
-             ) : (
-               <>
-                 <Camera className="w-12 h-12 text-slate-300 mb-4" />
-                 <span className="text-slate-500 font-medium">Tirar selfie ou escolher</span>
-                 <span className="text-xs text-slate-400 mt-2">(Ou arraste sua foto aqui)</span>
-               </>
-             )}
-          </label>
-        </div>
+        ) : (
+          <div className="flex-1 flex flex-col p-6">
+             <div className="flex items-center mb-8">
+               <button onClick={() => window.location.reload()} className="p-2 hover:bg-slate-100 rounded-full"><ArrowRight className="w-6 h-6 rotate-180 text-slate-600" /></button>
+             </div>
+             
+             <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm mx-auto w-full">
+                <div className="w-20 h-20 bg-violet-50 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                  <ScanFace className="w-10 h-10 text-violet-600" />
+                </div>
+                <h2 className="text-2xl font-serif text-slate-900 mb-3">Vamos analisar sua imagem</h2>
+                <p className="text-slate-500 mb-8">Para revelar o que mais te valoriza, precisamos de uma foto clara do seu rosto.</p>
+                
+                <div className="flex flex-col gap-5 w-full">
+                  <button onClick={startCamera} className="w-full py-4 bg-violet-600 text-white rounded-2xl font-bold flex items-center justify-center shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all transform active:scale-95">
+                    <Camera className="w-6 h-6 mr-3" />
+                    Tirar Selfie Agora
+                  </button>
+                  
+                  <div className="relative flex items-center py-2">
+                    <div className="flex-grow border-t border-slate-200"></div>
+                    <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-bold tracking-wider">Ou envie da galeria</span>
+                    <div className="flex-grow border-t border-slate-200"></div>
+                  </div>
+
+                  <label 
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`w-full aspect-[3/2] border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden ${isDragging ? 'border-violet-600 bg-violet-50 scale-105 shadow-xl' : 'border-slate-300 bg-slate-50 hover:border-violet-400 hover:bg-violet-50'}`}
+                  >
+                    <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                    {isDragging ? (
+                      <div className="animate-bounce flex flex-col items-center">
+                        <Download className="w-8 h-8 text-violet-600 mb-2" />
+                        <span className="text-violet-700 font-bold text-sm">Solte para enviar</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                        <span className="text-slate-500 font-medium text-sm">Escolher Arquivo</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+             </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -725,6 +815,8 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
   if (view === 'pricing') return <PricingView onSelectPlan={(p) => { setUserPlan(p); setView('dashboard'); }} currentPlan={userPlan} onBack={() => setView('dashboard')} />;
 
   if (view === 'dashboard') {
+    const displayColors = user.palette || (user.season && SEASONS[user.season] ? SEASONS[user.season].colors : []);
+
     return (
       <div className="min-h-screen bg-[#FDFBF7] flex flex-col pb-24 relative">
         <header className="px-6 pt-12 pb-6 bg-white shadow-sm rounded-b-3xl z-10">
@@ -763,16 +855,18 @@ const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canIn
 
         <div className="p-6 space-y-8 overflow-y-auto">
           {/* Palette Section */}
-          {user.season && SEASONS[user.season as keyof typeof SEASONS] && (
+          {user.season && (
              <section>
                <div className="flex justify-between items-center mb-4">
                  <h3 className="text-lg font-bold text-slate-800">Sua Paleta: {user.season}</h3>
-                 <span className="text-2xl">{SEASONS[user.season as keyof typeof SEASONS].icon}</span>
+                 <span className="text-2xl">{SEASONS[user.season as keyof typeof SEASONS]?.icon}</span>
                </div>
                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                 <p className="text-sm text-slate-600 mb-4 leading-relaxed">{SEASONS[user.season as keyof typeof SEASONS].description}</p>
+                 <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                   {SEASONS[user.season as keyof typeof SEASONS]?.description}
+                 </p>
                  <div className="flex flex-wrap gap-3">
-                   {SEASONS[user.season as keyof typeof SEASONS].colors.map((color, idx) => (
+                   {displayColors.map((color, idx) => (
                      <div key={idx} className="group relative">
                        <div 
                          className="w-12 h-12 rounded-full shadow-sm border border-slate-100 transition-transform hover:scale-110 cursor-pointer" 

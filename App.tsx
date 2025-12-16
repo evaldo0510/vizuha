@@ -628,9 +628,7 @@ const DashboardApp = () => {
       High fashion, realistic, detailed texture.`;
 
       setProcessingStep('Gerando imagem de alta fidelidade...');
-      const imageUrl = await GeminiService.generateFashionLook(prompt, aspectRatio, resolution);
-
-      setGeneratedLook({
+      const imageUrl = await GeminiService.generateLookWithUserFace(user.image!, prompt, aspectRatio, resolution);      setGeneratedLook({
         id: `gen-${Date.now()}`,
         objective: objectiveId,
         titulo: objectiveData?.label || 'Look',

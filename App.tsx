@@ -736,7 +736,7 @@ const DashboardApp = () => {
                     <img 
                       src={user.image} 
                       className="w-full h-full object-cover transition-transform duration-500" 
-                      style={{ transform: `rotate(${user.rotation}deg)` }}
+                      style={{ transform: `rotate(${user.rotation || 0}deg)` }}
                     />
                   </div>
                 )}
@@ -774,7 +774,7 @@ const DashboardApp = () => {
                    <img 
                      src={user.image} 
                      className="w-full h-full object-cover" 
-                     style={{ transform: `rotate(${user.rotation}deg)` }}
+                     style={{ transform: `rotate(${user.rotation || 0}deg)` }}
                    />
                 ) : <User />}
               </div>

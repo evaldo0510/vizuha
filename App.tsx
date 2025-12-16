@@ -8,13 +8,13 @@ import {
   BookOpen, Video, FileText, Unlock, Settings, 
   CreditCard, Crown, Check, ShieldCheck, Dumbbell, Grid,
   Search, Globe, Map, Zap, Facebook, Instagram, Twitter, Linkedin,
-  RotateCw, ZoomIn, PartyPopper, CalendarHeart
+  RotateCw, ZoomIn, PartyPopper, CalendarHeart, Smartphone
 } from 'lucide-react';
 import * as GeminiService from './services/geminiService';
 
 /**
  * VIZUHALIZANDO - AI Image Consultant App
- * Integrated with Google Gemini API
+ * Ready to Market Version 1.0 (PWA Enabled)
  */
 
 // --- Tipos & Interfaces ---
@@ -28,17 +28,15 @@ type ViewState =
   | 'dashboard' 
   | 'look-generator' 
   | 'look-result'
-  | 'wardrobe-grid'
-  | 'education' 
-  | 'assistant'
-  | 'professional';
+  | 'assistant';
 
-type PlanTier = 'free' | 'pro_monthly' | 'pro_annual' | 'studio_basic' | 'studio_pro' | 'studio_elite';
+type PlanTier = 'free' | 'premium' | 'pro';
 
 interface UserProfile {
   name: string;
+  email?: string;
   image: string | null; // Original uploaded image
-  rotation?: number; // Image rotation in degrees
+  rotation?: number; 
   analyzed: boolean;
   skinTone?: string;
   faceShape?: string;
@@ -46,6 +44,9 @@ interface UserProfile {
   contrast?: 'Baixo' | 'Médio' | 'Alto';
   traits?: string[];
   description?: string;
+  
+  // Usage tracking for Free plan
+  looksGenerated: number;
 }
 
 interface GeneratedLookData {
@@ -54,85 +55,56 @@ interface GeneratedLookData {
   titulo: string;
   detalhes: string;
   environment?: string;
-  environmentDesc?: string;
-  motivo: string;
   items: string[];
   tips: string;
   imagePlaceholder: string;
-  createdWithEnvironment: boolean;
 }
 
-interface ModalState {
-  isOpen: boolean;
-  type: 'education' | 'tool' | null;
-  data: any | null;
-}
-
-// --- Dados dos Planos (App Logic) ---
+// --- Dados dos Planos (Billing) ---
 const PLANS = {
-  personal: [
+  monthly: [
     {
       id: 'free',
       name: 'Free',
       price: 'R$ 0',
       period: '/mês',
-      features: ['Análise de Rosto Básica', '1 Look gerado por mês', 'Paleta simplificada'],
+      features: ['Análise de Rosto e Cores', '1 Look Contextualizado', 'Acesso ao Perfil Visual'],
       cta: 'Plano Atual',
       highlight: false,
       tier: 'free'
     },
     {
-      id: 'pro_monthly',
-      name: 'Pro Pessoal',
-      price: 'R$ 29,90',
+      id: 'premium_monthly',
+      name: 'Premium',
+      price: 'R$ 39',
       period: '/mês',
-      features: ['Análise Gemini 3 Pro', 'Geração 4K (Nano Banana)', 'Consultor IA (Search/Maps)', 'Edição Mágica'],
-      cta: 'Começar 7 dias grátis',
+      features: ['Looks Ilimitados', 'Objetivos Avançados (Encontros, Trabalho)', 'Exportação HD', 'Histórico Visual Salvo'],
+      cta: 'Assinar Premium',
       highlight: true,
-      tier: 'pro_monthly'
-    },
-    {
-      id: 'pro_annual',
-      name: 'Anual Pessoal',
-      price: 'R$ 19,90',
-      period: '/mês*',
-      subtext: '*Cobrado anualmente (R$ 238,80)',
-      features: ['Tudo do Pro Pessoal', 'Economia de 33%', 'Acesso antecipado a features'],
-      cta: 'Assinar com Desconto',
-      highlight: false,
-      tier: 'pro_annual'
+      tier: 'premium'
     }
   ],
-  professional: [
-    {
-      id: 'studio_basic',
-      name: 'Studio Básico',
-      price: 'R$ 89,90',
+  annual: [
+     {
+      id: 'free_annual',
+      name: 'Free',
+      price: 'R$ 0',
       period: '/mês',
-      features: ['Até 10 clientes/mês', 'Ficha técnica básica', 'Painel de Gestão'],
-      cta: 'Assinar Básico',
+      features: ['Análise de Rosto e Cores', '1 Look Contextualizado', 'Acesso ao Perfil Visual'],
+      cta: 'Plano Atual',
       highlight: false,
-      tier: 'studio_basic'
+      tier: 'free'
     },
     {
-      id: 'studio_pro',
-      name: 'Studio Pro',
-      price: 'R$ 149,90',
+      id: 'premium_annual',
+      name: 'Premium Anual',
+      price: 'R$ 29,90',
       period: '/mês',
-      features: ['Clientes Ilimitados', 'Dossiê em PDF (White-label)', 'Comparador de Tecidos', 'Suporte Prioritário'],
-      cta: 'Assinar Pro',
+      subtext: 'R$ 349/ano (Economize 25%)',
+      features: ['Tudo do Premium', 'Prioridade no Suporte', 'Acesso antecipado a novos recursos'],
+      cta: 'Assinar Anual',
       highlight: true,
-      tier: 'studio_pro'
-    },
-    {
-      id: 'studio_elite',
-      name: 'Studio Elite',
-      price: 'R$ 299,90',
-      period: '/mês',
-      features: ['Tudo do Studio Pro', 'API de Integração', 'Treinamento de Equipe', 'Multi-usuários (3 seats)'],
-      cta: 'Falar com Vendas',
-      highlight: false,
-      tier: 'studio_elite'
+      tier: 'premium'
     }
   ]
 };
@@ -161,12 +133,12 @@ const SEASONS: Record<string, { colors: string[], description: string, icon: str
 };
 
 const LOOK_OBJECTIVES = [
-  { id: 'work', label: 'Corporativo', icon: Briefcase, desc: 'Autoridade profissional', environmentContext: 'Escritório moderno' },
-  { id: 'casual', label: 'Casual Dia', icon: User, desc: 'Estilo no dia a dia', environmentContext: 'Rua urbana / Café' },
-  { id: 'party', label: 'Festa / Noite', icon: PartyPopper, desc: 'Noite e sofisticação', environmentContext: 'Lounge sofisticado' },
-  { id: 'sport', label: 'Esportivo', icon: Dumbbell, desc: 'Performance com estilo', environmentContext: 'Parque / Academia Premium' },
-  { id: 'date', label: 'Encontro (Date Night)', icon: CalendarHeart, desc: 'Romântico e atraente', environmentContext: 'Restaurante intimista à luz de velas' },
-  { id: 'formal', label: 'Evento Formal', icon: Crown, desc: 'Gala, luxo e elegância', environmentContext: 'Salão de baile clássico com lustres' },
+  { id: 'work', label: 'Corporativo', icon: Briefcase, desc: 'Autoridade profissional', environmentContext: 'Escritório moderno', premium: false },
+  { id: 'casual', label: 'Casual Dia', icon: User, desc: 'Estilo no dia a dia', environmentContext: 'Rua urbana / Café', premium: false },
+  { id: 'party', label: 'Festa / Noite', icon: PartyPopper, desc: 'Noite e sofisticação', environmentContext: 'Lounge sofisticado', premium: true },
+  { id: 'date', label: 'Encontro (Date)', icon: CalendarHeart, desc: 'Romântico e atraente', environmentContext: 'Restaurante intimista à luz de velas', premium: true },
+  { id: 'formal', label: 'Gala / Evento', icon: Crown, desc: 'Luxo e elegância', environmentContext: 'Salão de baile clássico', premium: true },
+  { id: 'sport', label: 'Esportivo', icon: Dumbbell, desc: 'Performance com estilo', environmentContext: 'Parque / Academia Premium', premium: true },
 ];
 
 // --- Componentes UI Reutilizáveis ---
@@ -177,10 +149,9 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
     primary: "bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-300",
     secondary: "bg-white text-slate-900 border border-slate-200 hover:bg-slate-50",
     gradient: "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-200 hover:shadow-xl hover:shadow-violet-200/50",
-    ghost: "bg-transparent text-slate-600 hover:bg-slate-100 shadow-none",
-    glass: "bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30",
-    premium: "bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-200",
-    outline: "bg-transparent border border-slate-300 text-slate-700 hover:bg-slate-50"
+    premium: "bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-200 hover:shadow-orange-200/50",
+    outline: "bg-transparent border border-slate-300 text-slate-700 hover:bg-slate-50",
+    ghost: "bg-transparent text-slate-600 hover:bg-slate-100 shadow-none"
   };
 
   return (
@@ -198,7 +169,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
 
 // --- Landing Page Components ---
 
-const Navbar = ({ onLogin }: { onLogin: () => void }) => (
+const Navbar = ({ onLogin, onInstall, canInstall }: { onLogin: () => void, onInstall?: () => void, canInstall?: boolean }) => (
   <nav className="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto w-full z-50 relative">
     <div className="flex items-center space-x-2">
       <div className="w-8 h-8 bg-gradient-to-tr from-violet-600 to-indigo-500 rounded-lg flex items-center justify-center text-white">
@@ -207,13 +178,19 @@ const Navbar = ({ onLogin }: { onLogin: () => void }) => (
       <span className="text-xl font-serif font-bold text-slate-900">Vizuhalizando</span>
     </div>
     <div className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-600">
-      <a href="#features" className="hover:text-violet-600 transition-colors">Recursos</a>
+      <a href="#benefits" className="hover:text-violet-600 transition-colors">Benefícios</a>
       <a href="#how-it-works" className="hover:text-violet-600 transition-colors">Como Funciona</a>
-      <a href="#pricing" className="hover:text-violet-600 transition-colors">Preços</a>
+      <a href="#pricing" className="hover:text-violet-600 transition-colors">Planos</a>
     </div>
     <div className="flex items-center space-x-4">
-      <Button variant="ghost" onClick={onLogin} className="hidden md:flex px-4 py-2">Login</Button>
-      <Button variant="primary" onClick={onLogin} className="px-5 py-2 text-sm">Começar Agora</Button>
+      {canInstall && (
+        <Button variant="ghost" onClick={onInstall} className="hidden md:flex px-4 py-2 text-violet-600 font-bold">
+          <Smartphone className="w-4 h-4 mr-2" />
+          Instalar App
+        </Button>
+      )}
+      <Button variant="ghost" onClick={onLogin} className="hidden md:flex px-4 py-2">Entrar</Button>
+      <Button variant="primary" onClick={onLogin} className="px-5 py-2 text-sm">Experimentar Grátis</Button>
     </div>
   </nav>
 );
@@ -228,21 +205,18 @@ const Hero = ({ onStart }: { onStart: () => void }) => (
         <Sparkles className="w-3 h-3 mr-2" /> Powered by Gemini 3.0
       </div>
       <h1 className="text-5xl md:text-7xl font-serif font-bold text-slate-900 mb-6 leading-tight">
-        Seu estilo pessoal,<br />
-        <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600">aperfeiçoado pela IA.</span>
+        Seu estilo explicado pela ciência.<br />
+        <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600">Agora com Inteligência Artificial.</span>
       </h1>
-      <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
-        Descubra sua coloração pessoal, formato de rosto e receba sugestões de looks
-        hiar-realistas gerados instantaneamente. A consultoria de imagem do futuro.
+      <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed font-medium">
+        Descubra as cores, modelagens e looks que realmente combinam com seu rosto, sua pele e sua intenção — visualizados na sua própria foto.
       </p>
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
         <Button variant="gradient" onClick={onStart} className="w-full sm:w-auto text-lg px-8 shadow-violet-300/50">
-          Análise Gratuita
+          Experimentar Grátis Agora
           <ArrowRight className="ml-2 w-5 h-5" />
         </Button>
-        <Button variant="outline" className="w-full sm:w-auto text-lg px-8">
-          <Play className="mr-2 w-5 h-5" /> Ver Demo
-        </Button>
+        <p className="text-xs text-slate-400 mt-2 sm:mt-0 sm:absolute sm:-bottom-8">Leva menos de 3 minutos</p>
       </div>
       
       {/* Abstract UI Mockup */}
@@ -268,20 +242,19 @@ const Hero = ({ onStart }: { onStart: () => void }) => (
   </section>
 );
 
-const Features = () => (
-  <section id="features" className="py-24 bg-white">
+const Benefits = () => (
+  <section id="benefits" className="py-24 bg-white">
     <div className="max-w-7xl mx-auto px-6">
       <div className="text-center mb-16">
-        <h2 className="text-4xl font-serif font-bold text-slate-900 mb-4">Recursos Poderosos</h2>
-        <p className="text-slate-600 max-w-2xl mx-auto">Tudo que você precisa para transformar sua imagem, em uma única plataforma.</p>
+        <h2 className="text-3xl font-serif font-bold text-slate-900 mb-4">Não é sobre moda.<br/>É sobre entender o que funciona em você.</h2>
       </div>
       
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
         {[
-          { icon: ScanFace, title: "Biometria Facial", desc: "Análise precisa de formato de rosto e proporções." },
-          { icon: Palette, title: "Coloração Pessoal", desc: "Descubra sua cartela de cores ideal (Sazonal Expandido)." },
-          { icon: Zap, title: "Geração Instantânea", desc: "Looks completos gerados em segundos com Nano Banana." },
-          { icon: TrendingUp, title: "Trend Analytics", desc: "Recomendações baseadas nas últimas tendências." }
+          { icon: Palette, title: "Coloração Pessoal", desc: "Saiba quais cores valorizam seu tom de pele e reduzem olheiras." },
+          { icon: ScanFace, title: "Visagismo IA", desc: "Entenda como seu rosto comunica personalidade e autoridade." },
+          { icon: Sparkles, title: "Looks Reais", desc: "Veja looks aplicados em você antes de comprar qualquer peça." },
+          { icon: ShieldCheck, title: "Sem Erros", desc: "Pare de gastar dinheiro com roupas que ficam paradas no armário." }
         ].map((feature, idx) => (
           <div key={idx} className="p-6 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-xl transition-all border border-slate-100 hover:border-violet-100 group">
             <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -306,7 +279,7 @@ const HowItWorks = () => (
             {[
               { step: "01", title: "Upload da Foto", desc: "Envie uma selfie simples. Nossa IA detecta iluminação e traços." },
               { step: "02", title: "Análise Profunda", desc: "Processamos geometria facial, subtom de pele e contraste." },
-              { step: "03", title: "Seu Dossiê", desc: "Receba sua cartela de cores e sugestões de looks personalizadas." }
+              { step: "03", title: "O Momento Uau", desc: "Receba sua cartela de cores e seu primeiro look aplicado instantaneamente." }
             ].map((item, idx) => (
               <div key={idx} className="flex gap-6 relative">
                 <div className="flex-shrink-0 w-12 h-12 bg-violet-600 text-white rounded-full flex items-center justify-center font-bold font-serif text-lg shadow-lg shadow-violet-200 z-10">
@@ -334,48 +307,36 @@ const Pricing = ({ onSelect }: { onSelect: () => void }) => (
   <section id="pricing" className="py-24 bg-white">
     <div className="max-w-7xl mx-auto px-6">
       <div className="text-center mb-16">
-        <h2 className="text-4xl font-serif font-bold text-slate-900 mb-4">Planos Flexíveis</h2>
-        <p className="text-slate-600">Escolha a melhor opção para sua jornada de estilo.</p>
+        <h2 className="text-4xl font-serif font-bold text-slate-900 mb-4">Investimento</h2>
+        <p className="text-slate-600">Quanto custa a sua melhor versão?</p>
       </div>
       
-      <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+      <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
         {/* Basic */}
         <div className="p-8 rounded-3xl border border-slate-200 bg-white hover:shadow-xl transition-all">
           <div className="mb-4 text-slate-900 font-bold text-xl">Básico</div>
           <div className="text-4xl font-serif font-bold text-slate-900 mb-2">Gratuito</div>
-          <p className="text-slate-500 text-sm mb-6">Para quem está começando.</p>
+          <p className="text-slate-500 text-sm mb-6">Para conhecer seu potencial.</p>
           <ul className="space-y-4 mb-8">
-            <li className="flex items-center text-sm text-slate-700"><CheckCircle className="w-4 h-4 text-violet-600 mr-2" /> Análise Facial Básica</li>
-            <li className="flex items-center text-sm text-slate-700"><CheckCircle className="w-4 h-4 text-violet-600 mr-2" /> 1 Look Mensal</li>
+            <li className="flex items-center text-sm text-slate-700"><CheckCircle className="w-4 h-4 text-violet-600 mr-2" /> Análise Facial & Cores</li>
+            <li className="flex items-center text-sm text-slate-700"><CheckCircle className="w-4 h-4 text-violet-600 mr-2" /> 1º Look Gratuito</li>
+            <li className="flex items-center text-sm text-slate-400"><X className="w-4 h-4 text-slate-300 mr-2" /> Objetivos Avançados</li>
           </ul>
-          <Button variant="outline" onClick={onSelect} className="w-full">Começar Grátis</Button>
+          <Button variant="outline" onClick={onSelect} className="w-full">Começar Agora</Button>
         </div>
 
-        {/* Pro */}
+        {/* Premium */}
         <div className="p-8 rounded-3xl border-2 border-violet-600 bg-slate-900 text-white relative transform md:-translate-y-4 shadow-2xl">
-          <div className="absolute top-0 right-0 bg-violet-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl uppercase tracking-wider">Popular</div>
-          <div className="mb-4 font-bold text-xl text-violet-300">Pro</div>
-          <div className="text-4xl font-serif font-bold mb-2">R$ 29,90<span className="text-sm font-sans font-normal text-slate-400">/mês</span></div>
-          <p className="text-slate-400 text-sm mb-6">A experiência completa.</p>
+          <div className="absolute top-0 right-0 bg-violet-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl uppercase tracking-wider">Recomendado</div>
+          <div className="mb-4 font-bold text-xl text-violet-300">Premium</div>
+          <div className="text-4xl font-serif font-bold mb-2">R$ 39<span className="text-sm font-sans font-normal text-slate-400">/mês</span></div>
+          <p className="text-slate-400 text-sm mb-6">A experiência completa de estilo.</p>
           <ul className="space-y-4 mb-8">
-            <li className="flex items-center text-sm"><CheckCircle className="w-4 h-4 text-violet-400 mr-2" /> Análise Gemini 3 Pro</li>
-            <li className="flex items-center text-sm"><CheckCircle className="w-4 h-4 text-violet-400 mr-2" /> Gerações Ilimitadas</li>
-            <li className="flex items-center text-sm"><CheckCircle className="w-4 h-4 text-violet-400 mr-2" /> Assistente de Moda 24h</li>
+            <li className="flex items-center text-sm"><CheckCircle className="w-4 h-4 text-violet-400 mr-2" /> Looks Ilimitados</li>
+            <li className="flex items-center text-sm"><CheckCircle className="w-4 h-4 text-violet-400 mr-2" /> Objetivos Avançados (Festa, Trabalho)</li>
+            <li className="flex items-center text-sm"><CheckCircle className="w-4 h-4 text-violet-400 mr-2" /> Histórico Visual & Exportação</li>
           </ul>
-          <Button variant="gradient" onClick={onSelect} className="w-full shadow-none">Assinar Pro</Button>
-        </div>
-
-        {/* Enterprise */}
-        <div className="p-8 rounded-3xl border border-slate-200 bg-white hover:shadow-xl transition-all">
-          <div className="mb-4 text-slate-900 font-bold text-xl">Enterprise</div>
-          <div className="text-4xl font-serif font-bold text-slate-900 mb-2">R$ 149<span className="text-sm font-sans font-normal text-slate-400">/mês</span></div>
-          <p className="text-slate-500 text-sm mb-6">Para consultores e estúdios.</p>
-          <ul className="space-y-4 mb-8">
-            <li className="flex items-center text-sm text-slate-700"><CheckCircle className="w-4 h-4 text-violet-600 mr-2" /> Múltiplos Clientes</li>
-            <li className="flex items-center text-sm text-slate-700"><CheckCircle className="w-4 h-4 text-violet-600 mr-2" /> Marca White-label</li>
-            <li className="flex items-center text-sm text-slate-700"><CheckCircle className="w-4 h-4 text-violet-600 mr-2" /> Relatórios PDF</li>
-          </ul>
-          <Button variant="outline" onClick={onSelect} className="w-full">Falar com Vendas</Button>
+          <Button variant="gradient" onClick={onSelect} className="w-full shadow-none">Assinar Premium</Button>
         </div>
       </div>
     </div>
@@ -391,32 +352,7 @@ const Footer = () => (
             <Sparkles className="w-5 h-5 text-violet-500" />
             <span className="text-xl font-serif font-bold">Vizuhalizando</span>
           </div>
-          <p className="text-slate-400 text-sm">Transformando a consultoria de imagem com inteligência artificial.</p>
-        </div>
-        <div>
-          <h4 className="font-bold mb-4">Produto</h4>
-          <ul className="space-y-2 text-sm text-slate-400">
-            <li><a href="#" className="hover:text-white">Recursos</a></li>
-            <li><a href="#" className="hover:text-white">Preços</a></li>
-            <li><a href="#" className="hover:text-white">API</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="font-bold mb-4">Empresa</h4>
-          <ul className="space-y-2 text-sm text-slate-400">
-            <li><a href="#" className="hover:text-white">Sobre</a></li>
-            <li><a href="#" className="hover:text-white">Blog</a></li>
-            <li><a href="#" className="hover:text-white">Carreiras</a></li>
-          </ul>
-        </div>
-        <div>
-           <h4 className="font-bold mb-4">Social</h4>
-           <div className="flex space-x-4">
-             <a href="#" className="p-2 bg-slate-800 rounded-full hover:bg-violet-600 transition-colors"><Facebook className="w-4 h-4" /></a>
-             <a href="#" className="p-2 bg-slate-800 rounded-full hover:bg-violet-600 transition-colors"><Instagram className="w-4 h-4" /></a>
-             <a href="#" className="p-2 bg-slate-800 rounded-full hover:bg-violet-600 transition-colors"><Twitter className="w-4 h-4" /></a>
-             <a href="#" className="p-2 bg-slate-800 rounded-full hover:bg-violet-600 transition-colors"><Linkedin className="w-4 h-4" /></a>
-           </div>
+          <p className="text-slate-400 text-sm">Seu estilo explicado. Aplicado. Visualizado.</p>
         </div>
       </div>
       <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-slate-500">
@@ -430,12 +366,12 @@ const Footer = () => (
   </footer>
 );
 
-const LandingPage = ({ onStart }: { onStart: () => void }) => {
+const LandingPage = ({ onStart, onInstall, canInstall }: { onStart: () => void, onInstall?: () => void, canInstall?: boolean }) => {
   return (
     <div className="min-h-screen font-sans bg-white selection:bg-violet-100 selection:text-violet-900">
-      <Navbar onLogin={onStart} />
+      <Navbar onLogin={onStart} onInstall={onInstall} canInstall={canInstall} />
       <Hero onStart={onStart} />
-      <Features />
+      <Benefits />
       <HowItWorks />
       <Pricing onSelect={onStart} />
       <Footer />
@@ -443,10 +379,10 @@ const LandingPage = ({ onStart }: { onStart: () => void }) => {
   );
 };
 
-// --- Sub-Componentes do App Original (DashboardApp) ---
+// --- Sub-Componentes do App (Dashboard) ---
 
 const PricingView = ({ onSelectPlan, currentPlan, onBack }: { onSelectPlan: (plan: PlanTier) => void, currentPlan: PlanTier, onBack: () => void }) => {
-  const [tab, setTab] = useState<'personal' | 'professional'>('personal');
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
   
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col pb-10">
@@ -456,21 +392,24 @@ const PricingView = ({ onSelectPlan, currentPlan, onBack }: { onSelectPlan: (pla
         </button>
         <div className="absolute top-0 right-0 w-64 h-64 bg-violet-600/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
         <div className="text-center mt-6 relative z-10">
-          <h2 className="text-3xl font-serif mb-2">Escolha seu Plano</h2>
-          <p className="text-slate-300 text-sm max-w-xs mx-auto">Gemini Pro 3.0 & Nano Banana desbloqueados.</p>
+          <h2 className="text-3xl font-serif mb-2">Desbloqueie seu Potencial</h2>
+          <p className="text-slate-300 text-sm max-w-xs mx-auto">Você não muda quem é. Você aprende a se expressar melhor.</p>
         </div>
         <div className="flex justify-center mt-8 relative z-10">
-          <div className="bg-slate-800 p-1 rounded-full flex">
-            <button onClick={() => setTab('personal')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${tab === 'personal' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}>Para Você</button>
-            <button onClick={() => setTab('professional')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${tab === 'professional' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}>Profissional</button>
+          <div className="bg-slate-800 p-1 rounded-full flex relative">
+            <button onClick={() => setBilling('monthly')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all z-10 ${billing === 'monthly' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}>Mensal</button>
+            <button onClick={() => setBilling('annual')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all z-10 ${billing === 'annual' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}>Anual (-25%)</button>
           </div>
         </div>
       </div>
       <div className="flex-1 px-6 -mt-8 space-y-4 overflow-y-auto pt-4 pb-8">
-        {PLANS[tab].map((plan) => (
+        {PLANS[billing].map((plan) => (
           <div key={plan.id} className={`bg-white rounded-2xl p-6 border-2 transition-all relative ${plan.highlight ? 'border-violet-500 shadow-xl shadow-violet-100 scale-105 z-10' : 'border-transparent shadow-md opacity-90'}`}>
             <div className="flex justify-between items-start mb-4">
-              <div><h3 className="text-lg font-bold text-slate-900">{plan.name}</h3></div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">{plan.name}</h3>
+                {plan.subtext && <span className="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded-full">{plan.subtext}</span>}
+              </div>
               <div className="text-right"><span className="text-2xl font-bold text-slate-900 block">{plan.price}</span></div>
             </div>
             <ul className="space-y-3 mb-6">
@@ -481,21 +420,26 @@ const PricingView = ({ onSelectPlan, currentPlan, onBack }: { onSelectPlan: (pla
             <Button variant={plan.highlight ? 'gradient' : 'secondary'} className="w-full text-sm py-3" onClick={() => onSelectPlan(plan.tier as PlanTier)}>{plan.cta}</Button>
           </div>
         ))}
+        
+        <div className="text-center mt-6">
+           <p className="text-xs text-slate-400">Pagamento seguro via Stripe. Cancele quando quiser.</p>
+        </div>
       </div>
     </div>
   );
 };
 
-// --- Refactored Main Dashboard Logic ---
+// --- Main Dashboard Logic ---
 
-const DashboardApp = () => {
-  const [view, setView] = useState<ViewState>('upload'); // Default to 'upload' as we now have an external Landing Page
+const DashboardApp = ({ onInstall, canInstall }: { onInstall?: () => void, canInstall?: boolean }) => {
+  const [view, setView] = useState<ViewState>('upload'); 
   const [userPlan, setUserPlan] = useState<PlanTier>('free');
   const [user, setUser] = useState<UserProfile>({
     name: 'Visitante',
     image: null,
     rotation: 0,
-    analyzed: false
+    analyzed: false,
+    looksGenerated: 0
   });
   
   // Persistence Logic
@@ -554,10 +498,11 @@ const DashboardApp = () => {
       
       // Start Analysis
       setView('analyzing');
-      setProcessingStep('Carregando Gemini 3 Pro...');
+      setProcessingStep('Detectando rosto e iluminação...');
       
       try {
-         setProcessingStep('Analisando geometria facial e colorimetria...');
+         // Step 1: Visagism Analysis
+         setProcessingStep('Analisando visagismo e psicologia da imagem...');
          const analysis = await GeminiService.analyzeUserImage(base64);
          
          setUser(prev => ({
@@ -571,15 +516,15 @@ const DashboardApp = () => {
            description: analysis.description
          }));
 
-         setProcessingStep('Finalizando...');
+         setProcessingStep('Finalizando seu dossiê...');
          setTimeout(() => {
-           if (userPlan === 'free') setView('paywall');
-           else setView('dashboard');
+            // First Analysis Free -> Straight to Dashboard
+            setView('dashboard');
          }, 1000);
 
       } catch (error) {
          console.error(error);
-         alert("Erro na análise de imagem. Tente novamente.");
+         alert("Erro na análise de imagem. Tente novamente com uma foto mais clara.");
          setView('upload');
       }
     };
@@ -615,42 +560,62 @@ const DashboardApp = () => {
   };
 
   const generateLook = async (objectiveId: string) => {
+    // Usage Logic Enforcer
+    const objectiveData = LOOK_OBJECTIVES.find(o => o.id === objectiveId);
+
+    if (userPlan === 'free') {
+       if (user.looksGenerated >= 1) {
+         alert("Você atingiu o limite do plano gratuito. Faça upgrade para gerar looks ilimitados.");
+         setView('pricing');
+         return;
+       }
+       if (objectiveData?.premium) {
+         alert("Este objetivo é exclusivo do plano Premium. Faça upgrade para desbloquear.");
+         setView('pricing');
+         return;
+       }
+    }
+
     setSelectedObjective(objectiveId);
     setIsProcessing(true);
-    const objectiveData = LOOK_OBJECTIVES.find(o => o.id === objectiveId);
     
-    setProcessingStep(`Preparando Gemini 3 Pro Image (${resolution})...`);
+    setProcessingStep(`Conectando ao consultor IA...`);
 
     try {
-      const prompt = `Fashion photography of a person with ${user.faceShape} face shape and ${user.season} color season palette. 
-      Wearing a ${objectiveData?.label} outfit (${objectiveData?.desc}). 
-      ${createEnvironment ? `Setting: ${objectiveData?.environmentContext}.` : 'White studio background.'}
-      High fashion, realistic, detailed texture.`;
+      const prompt = `Create a hyper-realistic fashion photograph for a person with ${user.faceShape} face shape and ${user.season} color palette. 
+      The goal is ${objectiveData?.label} (${objectiveData?.desc}). 
+      Visagism strategy: Use clothing lines that balance their features (implied by face shape).
+      ${createEnvironment ? `Setting: ${objectiveData?.environmentContext}.` : 'Studio background.'}
+      Focus on texture, fabric quality and perfect color harmony. High fashion.`;
 
-      setProcessingStep('Gerando imagem de alta fidelidade...');
-      const imageUrl = await GeminiService.generateFashionLook(prompt, aspectRatio, resolution);
+      setProcessingStep('Aplicando estilo na sua foto (Nano Banana)...');
+      
+      // Parallel execution: Generate Image and Generate Explanation
+      const [imageUrl, explanation] = await Promise.all([
+         GeminiService.generateFashionLook(prompt, aspectRatio, resolution),
+         GeminiService.generateLookExplanation(user, objectiveData?.label || 'Look', objectiveData?.desc || '')
+      ]);
 
       setGeneratedLook({
         id: `gen-${Date.now()}`,
         objective: objectiveId,
         titulo: objectiveData?.label || 'Look',
-        environment: objectiveData?.environmentContext,
-        environmentDesc: createEnvironment ? 'Ambiente realista.' : 'Fundo neutro.',
-        items: ['Análise de estilo pendente...'],
-        detalhes: user.description || 'Look gerado com IA',
-        tips: `Ideal para seu rosto ${user.faceShape}.`,
-        imagePlaceholder: imageUrl,
-        createdWithEnvironment: createEnvironment,
-        motivo: 'Harmonia cromática'
+        items: ['Look gerado'],
+        detalhes: explanation || user.description || 'Look personalizado',
+        tips: explanation,
+        imagePlaceholder: imageUrl
       });
       
+      // Increment Usage
+      setUser(prev => ({ ...prev, looksGenerated: prev.looksGenerated + 1 }));
+
       setIsProcessing(false);
       setView('look-result');
 
     } catch (error) {
       console.error(error);
       setIsProcessing(false);
-      alert("Falha na geração. Verifique sua conexão ou tente mais tarde.");
+      alert("Falha na geração. Verifique sua conexão.");
     }
   };
 
@@ -671,10 +636,7 @@ const DashboardApp = () => {
   const handleAssistantQuery = async (type: 'search' | 'maps') => {
     if(!assistantQuery) return;
     setIsAssistantLoading(true);
-    
-    // Simple mock location for demo purposes
     const loc = { lat: 40.7128, lng: -74.0060 }; 
-
     const result = await GeminiService.getFashionAdvice(assistantQuery, type, loc);
     setAssistantResponse(result);
     setIsAssistantLoading(false);
@@ -692,8 +654,8 @@ const DashboardApp = () => {
           <div className="w-20 h-20 bg-violet-50 rounded-full flex items-center justify-center mb-6 animate-pulse">
             <ScanFace className="w-10 h-10 text-violet-600" />
           </div>
-          <h2 className="text-2xl font-serif text-slate-900 mb-3">Vamos conhecer você</h2>
-          <p className="text-slate-500 mb-8 max-w-xs">Analisaremos sua geometria facial usando Gemini Vision.</p>
+          <h2 className="text-2xl font-serif text-slate-900 mb-3">Vamos analisar sua imagem</h2>
+          <p className="text-slate-500 mb-8 max-w-xs">Para revelar o que mais te valoriza, precisamos de uma foto clara do seu rosto.</p>
           <label 
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -760,8 +722,7 @@ const DashboardApp = () => {
     );
   }
 
-  if (view === 'paywall') return <div className="min-h-screen bg-slate-900 p-8 flex flex-col items-center justify-center text-white text-center"><Lock className="w-12 h-12 mb-4" /><h2 className="text-2xl mb-4">Resultado Pronto</h2><Button onClick={() => setView('pricing')} variant="premium">Ver Planos</Button></div>;
-  if (view === 'pricing') return <PricingView onSelectPlan={(p) => { setUserPlan(p); setView('dashboard'); }} currentPlan={userPlan} onBack={() => setView('onboarding')} />;
+  if (view === 'pricing') return <PricingView onSelectPlan={(p) => { setUserPlan(p); setView('dashboard'); }} currentPlan={userPlan} onBack={() => setView('dashboard')} />;
 
   if (view === 'dashboard') {
     return (
@@ -783,7 +744,20 @@ const DashboardApp = () => {
                 <p className="text-xs text-violet-600 font-medium tracking-wide uppercase">{user.season || 'Análise Pendente'}</p>
               </div>
             </div>
-            <button onClick={() => setView('assistant')} className="p-2 bg-slate-50 rounded-full text-slate-600 hover:bg-slate-100"><Search className="w-6 h-6" /></button>
+            <div className="flex items-center space-x-2">
+              {canInstall && (
+                 <button onClick={onInstall} className="p-2 bg-violet-50 text-violet-600 rounded-full hover:bg-violet-100 transition-colors" title="Instalar App">
+                   <Smartphone className="w-5 h-5" />
+                 </button>
+              )}
+              {userPlan === 'free' ? (
+                  <button onClick={() => setView('pricing')} className="px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-full shadow-lg animate-pulse">
+                    Desbloquear Premium
+                  </button>
+              ) : (
+                  <div className="flex items-center text-amber-500 font-bold text-xs"><Crown className="w-4 h-4 mr-1"/> Premium</div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -812,15 +786,29 @@ const DashboardApp = () => {
              </section>
           )}
 
+          {/* User Psychology / Visagism Summary */}
+          {user.description && (
+             <section className="bg-violet-50 p-6 rounded-2xl border border-violet-100">
+               <h3 className="font-serif font-bold text-slate-900 mb-2 flex items-center"><ScanFace className="w-4 h-4 mr-2 text-violet-600"/> Visagismo Digital</h3>
+               <p className="text-sm text-slate-700 italic">"{user.description}"</p>
+             </section>
+          )}
+
           <section>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-800">Experimentador Gemini 3</h3>
+              <h3 className="text-lg font-bold text-slate-800">Seu Provador Virtual</h3>
+              <span className="text-xs text-slate-500">{userPlan === 'free' ? `${1 - user.looksGenerated} restante` : 'Ilimitado'}</span>
             </div>
-            <div onClick={() => setView('look-generator')} className="group relative h-40 rounded-2xl overflow-hidden cursor-pointer shadow-md transition-transform hover:scale-[1.02]">
+            <div onClick={() => setView('look-generator')} className="group relative h-44 rounded-2xl overflow-hidden cursor-pointer shadow-md transition-transform hover:scale-[1.02]">
               <img src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=800" className="absolute inset-0 w-full h-full object-cover opacity-90" />
               <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent flex flex-col justify-center p-6">
-                <h4 className="text-white font-serif text-xl">Criar Look Único</h4>
-                <p className="text-slate-300 text-xs mt-1">Alta Resolução & IA Generativa</p>
+                <h4 className="text-white font-serif text-xl">Gerar Novo Look</h4>
+                <p className="text-slate-300 text-xs mt-1">IA aplica roupas na sua foto.</p>
+                {userPlan === 'free' && user.looksGenerated >= 1 && (
+                    <div className="mt-3 inline-flex items-center text-xs font-bold bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-white">
+                        <Lock className="w-3 h-3 mr-1" /> Upgrade Necessário
+                    </div>
+                )}
               </div>
             </div>
           </section>
@@ -829,7 +817,7 @@ const DashboardApp = () => {
              <div onClick={() => setView('assistant')} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-between cursor-pointer">
                <div>
                  <h3 className="font-bold text-slate-900">Assistente de Moda</h3>
-                 <p className="text-xs text-slate-500">Pergunte sobre tendências ou lojas próximas</p>
+                 <p className="text-xs text-slate-500">Tire dúvidas sobre combinações</p>
                </div>
                <div className="bg-violet-100 p-3 rounded-full"><Sparkles className="w-5 h-5 text-violet-600" /></div>
              </div>
@@ -839,7 +827,7 @@ const DashboardApp = () => {
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-4 flex justify-between items-center z-40">
           <button className="flex flex-col items-center text-violet-600"><User className="w-6 h-6" /><span className="text-[10px] font-medium mt-1">Perfil</span></button>
           <button onClick={() => setView('look-generator')} className="flex flex-col items-center -mt-8"><div className="w-14 h-14 bg-slate-900 rounded-full flex items-center justify-center shadow-lg text-white ring-4 ring-slate-50"><ScanFace className="w-7 h-7" /></div></button>
-          <button className="flex flex-col items-center text-slate-400"><Briefcase className="w-6 h-6" /><span className="text-[10px] font-medium mt-1">Pro</span></button>
+          <button className="flex flex-col items-center text-slate-400" onClick={() => setView('pricing')}><Crown className="w-6 h-6" /><span className="text-[10px] font-medium mt-1">Premium</span></button>
         </nav>
       </div>
     );
@@ -850,29 +838,11 @@ const DashboardApp = () => {
       <div className="min-h-screen bg-white flex flex-col">
         <div className="p-6 border-b border-slate-100 flex items-center bg-slate-50">
           <button onClick={() => setView('dashboard')} className="mr-4"><ArrowRight className="w-6 h-6 rotate-180" /></button>
-          <h2 className="text-xl font-serif text-slate-900">Gerador Nano Banana</h2>
+          <h2 className="text-xl font-serif text-slate-900">Selecione o Objetivo</h2>
         </div>
         <div className="p-6 overflow-y-auto pb-24">
           
           <div className="mb-6 space-y-4">
-             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-               <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Formato (Aspect Ratio)</label>
-               <div className="flex gap-2">
-                 {["1:1", "3:4", "9:16", "16:9"].map(r => (
-                   <button key={r} onClick={() => setAspectRatio(r)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${aspectRatio === r ? 'bg-violet-600 text-white' : 'bg-white text-slate-600 border'}`}>{r}</button>
-                 ))}
-               </div>
-             </div>
-             
-             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-               <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Qualidade (Nano Banana Pro)</label>
-               <div className="flex gap-2">
-                 {["1K", "2K", "4K"].map(r => (
-                   <button key={r} onClick={() => setResolution(r)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${resolution === r ? 'bg-amber-500 text-white' : 'bg-white text-slate-600 border'}`}>{r}</button>
-                 ))}
-               </div>
-             </div>
-
              <div className="flex items-center p-3 bg-violet-50 rounded-xl border border-violet-100">
                 <input type="checkbox" checked={createEnvironment} onChange={(e) => setCreateEnvironment(e.target.checked)} className="w-5 h-5 text-violet-600 rounded mr-3" />
                 <label className="text-sm font-medium text-slate-700">Criar ambiente contextualizado</label>
@@ -881,10 +851,20 @@ const DashboardApp = () => {
 
           <div className="grid grid-cols-1 gap-4">
             {LOOK_OBJECTIVES.map((obj) => (
-              <button key={obj.id} onClick={() => generateLook(obj.id)} className="flex items-center p-4 rounded-xl border border-slate-200 hover:border-violet-500 transition-all text-left h-24">
+              <button key={obj.id} onClick={() => generateLook(obj.id)} className={`flex items-center p-4 rounded-xl border transition-all text-left h-24 relative overflow-hidden ${userPlan === 'free' && obj.premium ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-slate-200 hover:border-violet-500 bg-white'}`}>
                 <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mr-4"><obj.icon className="w-6 h-6 text-slate-800" /></div>
-                <div><h4 className="font-bold text-slate-900 text-lg">{obj.label}</h4></div>
-                <ChevronRight className="w-5 h-5 text-slate-400 ml-auto" />
+                <div>
+                    <h4 className="font-bold text-slate-900 text-lg flex items-center">
+                        {obj.label} 
+                        {obj.premium && <Crown className="w-3 h-3 text-amber-500 ml-2" />}
+                    </h4>
+                    <p className="text-xs text-slate-500">{obj.desc}</p>
+                </div>
+                {userPlan === 'free' && obj.premium ? (
+                    <Lock className="w-5 h-5 text-slate-400 ml-auto" />
+                ) : (
+                    <ChevronRight className="w-5 h-5 text-slate-400 ml-auto" />
+                )}
               </button>
             ))}
           </div>
@@ -906,17 +886,28 @@ const DashboardApp = () => {
         <div className="flex-1 bg-white -mt-6 rounded-t-3xl relative z-20 px-6 py-6 shadow-2xl">
            <div className="mb-6">
              <h3 className="font-serif text-2xl text-slate-900 mb-2">{generatedLook.titulo}</h3>
-             <p className="text-sm text-slate-500">{generatedLook.detalhes}</p>
+             <p className="text-sm text-slate-500 italic mb-4">"{generatedLook.detalhes}"</p>
            </div>
            
+           {/* Upsell for Free Users on Result Page */}
+           {userPlan === 'free' && (
+              <div onClick={() => setView('pricing')} className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 rounded-xl text-white mb-6 cursor-pointer flex justify-between items-center shadow-lg">
+                 <div>
+                    <p className="font-bold text-sm">Gostou desse look?</p>
+                    <p className="text-xs text-slate-300">Desbloqueie versões infinitas agora.</p>
+                 </div>
+                 <ArrowRight className="w-5 h-5 text-white" />
+              </div>
+           )}
+
            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-6">
-             <h4 className="text-xs font-bold text-violet-600 uppercase mb-3 flex items-center"><Wand2 className="w-3 h-3 mr-2" /> Edição Mágica (Gemini 2.5 Flash)</h4>
+             <h4 className="text-xs font-bold text-violet-600 uppercase mb-3 flex items-center"><Wand2 className="w-3 h-3 mr-2" /> Edição Mágica</h4>
              <div className="flex gap-2">
                <input 
                  type="text" 
                  value={editPrompt}
                  onChange={(e) => setEditPrompt(e.target.value)}
-                 placeholder="Ex: Adicionar óculos de sol, mudar fundo..."
+                 placeholder="Ex: Mudar a cor da blusa para vermelho..."
                  className="flex-1 text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-500"
                />
                <button 
@@ -1003,12 +994,36 @@ const DashboardApp = () => {
 
 const VizuhalizandoApp = () => {
   const [showApp, setShowApp] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      installPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the A2HS prompt');
+          setInstallPrompt(null);
+        } else {
+          console.log('User dismissed the A2HS prompt');
+        }
+      });
+    }
+  };
 
   if (showApp) {
-    return <DashboardApp />;
+    return <DashboardApp onInstall={handleInstall} canInstall={!!installPrompt} />;
   }
 
-  return <LandingPage onStart={() => setShowApp(true)} />;
+  return <LandingPage onStart={() => setShowApp(true)} onInstall={handleInstall} canInstall={!!installPrompt} />;
 };
 
 export default VizuhalizandoApp;

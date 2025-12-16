@@ -1,0 +1,9 @@
+{
+  "name": "Vizuhalizando AI",
+  "description": "AI-powered personal image consultant and wardrobe generator.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
